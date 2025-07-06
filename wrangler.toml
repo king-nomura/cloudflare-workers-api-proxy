@@ -1,0 +1,32 @@
+name = "api-proxy-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# 環境変数（本番環境では wrangler secret put コマンドで設定）
+[vars]
+ALLOWED_ORIGIN = "https://your-pwa-domain.com"
+EXTERNAL_API_URL = "https://api.external-service.com/v1/data"
+
+# KV Namespace（レート制限用）
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# KV Namespace（ユーザー統計用）
+[[kv_namespaces]]
+binding = "USER_STATS_KV"
+id = "your-stats-kv-namespace-id"
+preview_id = "your-preview-stats-kv-namespace-id"
+
+# 本番環境の設定
+[env.production]
+name = "api-proxy-worker-prod"
+[env.production.vars]
+ALLOWED_ORIGIN = "https://your-production-domain.com"
+
+# 開発環境の設定
+[env.development]
+name = "api-proxy-worker-dev"
+[env.development.vars]
+ALLOWED_ORIGIN = "*"
