@@ -32,9 +32,9 @@ export default {
         return await handleTokenRequest(request, env, corsHeaders);
       }
 
-      return new Response('Not Found', { 
+      return new Response('Not Found', {
         status: 404,
-        headers: corsHeaders 
+        headers: corsHeaders
       });
 
     } catch (error) {
@@ -71,15 +71,15 @@ async function handleTokenRequest(request, env, corsHeaders) {
   try {
     // 匿名ユーザーIDの生成
     const anonymousUserId = await generateAnonymousUserId();
-    
+
     // トークンの生成
     const token = await generateAnonymousToken(anonymousUserId, env);
-    
+
     // 使用統計の初期化
     await initializeUserStats(anonymousUserId, env);
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         token,
         userId: anonymousUserId,
         expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30日後
@@ -145,9 +145,9 @@ async function handleExternalApiRequest(request, env, corsHeaders) {
   const rateLimitResult = await checkRateLimit(authResult.userId, env);
   if (!rateLimitResult.allowed) {
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Rate limit exceeded',
-        retryAfter: rateLimitResult.retryAfter 
+        retryAfter: rateLimitResult.retryAfter
       }),
       {
         status: 429,
@@ -223,19 +223,19 @@ async function handleExternalApiRequest(request, env, corsHeaders) {
 // ユーザー認証の確認（匿名トークン用）
 async function authenticateUser(request, env) {
   const authHeader = request.headers.get('Authorization');
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return { success: false, error: 'Missing or invalid authorization header' };
   }
 
   const token = authHeader.substring(7);
-  
+
   try {
     // 匿名トークンの検証
     const payload = await verifyAnonymousToken(token, env);
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       userId: payload.userId,
       isAnonymous: true,
       issuedAt: payload.iat,
@@ -254,7 +254,7 @@ async function generateAnonymousUserId() {
   const randomHex = Array.from(randomBytes)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  
+
   return `anon_${timestamp}_${randomHex}`;
 }
 
@@ -262,7 +262,7 @@ async function generateAnonymousUserId() {
 async function generateAnonymousToken(userId, env) {
   const now = Math.floor(Date.now() / 1000);
   const exp = now + (30 * 24 * 60 * 60); // 30日後
-  
+
   const payload = {
     userId,
     iat: now,
@@ -274,15 +274,15 @@ async function generateAnonymousToken(userId, env) {
 }
 
 // 匿名トークンの検証
-async function verifyAnonymousToken(token, secret) {
+async function verifyAnonymousToken(token, env) {
   try {
-    const payload = await verifyJWT(token, secret);
-    
+    const payload = await verifyJWT(token, env.JWT_SECRET);
+
     // 匿名トークンの追加チェック
     if (payload.type !== 'anonymous') {
       throw new Error('Invalid token type');
     }
-    
+
     return payload;
   } catch (error) {
     throw new Error('Invalid anonymous token');
@@ -299,7 +299,7 @@ async function initializeUserStats(userId, env) {
       lastRequestAt: null,
       dailyRequests: {}
     };
-    
+
     await env.USER_STATS_KV.put(statsKey, JSON.stringify(stats));
   } catch (error) {
     console.error('Failed to initialize user stats:', error);
@@ -316,7 +316,7 @@ async function checkRateLimit(userId, env) {
   try {
     // レート制限チェック
     const rateData = await env.RATE_LIMIT_KV.get(rateLimitKey);
-    
+
     let requests = [];
     if (rateData) {
       requests = JSON.parse(rateData);
@@ -329,19 +329,19 @@ async function checkRateLimit(userId, env) {
     if (requests.length >= maxRequests) {
       const oldestRequest = Math.min(...requests);
       const retryAfter = Math.ceil((oldestRequest + windowMs - now) / 1000);
-      
-      return { 
-        allowed: false, 
-        retryAfter: retryAfter 
+
+      return {
+        allowed: false,
+        retryAfter: retryAfter
       };
     }
 
     // 新しいリクエストを追加
     requests.push(now);
-    
+
     // KVに保存（TTLを設定）
     await env.RATE_LIMIT_KV.put(
-      rateLimitKey, 
+      rateLimitKey,
       JSON.stringify(requests),
       { expirationTtl: Math.ceil(windowMs / 1000) }
     );
@@ -364,7 +364,7 @@ async function updateUserStats(userId, env) {
     const statsKey = `user_stats:${userId}`;
     const now = Date.now();
     const today = new Date(now).toISOString().split('T')[0];
-    
+
     const existingStats = await env.USER_STATS_KV.get(statsKey);
     let stats = existingStats ? JSON.parse(existingStats) : {
       createdAt: now,
@@ -372,11 +372,11 @@ async function updateUserStats(userId, env) {
       lastRequestAt: null,
       dailyRequests: {}
     };
-    
+
     stats.totalRequests++;
     stats.lastRequestAt = now;
     stats.dailyRequests[today] = (stats.dailyRequests[today] || 0) + 1;
-    
+
     // 古い日次データを削除（30日分のみ保持）
     const cutoffDate = new Date(now - 30 * 24 * 60 * 60 * 1000);
     Object.keys(stats.dailyRequests).forEach(date => {
@@ -384,7 +384,7 @@ async function updateUserStats(userId, env) {
         delete stats.dailyRequests[date];
       }
     });
-    
+
     await env.USER_STATS_KV.put(statsKey, JSON.stringify(stats));
   } catch (error) {
     console.error('Failed to update user stats:', error);
@@ -419,13 +419,13 @@ async function signJWT(payload, secret) {
 async function verifyJWT(token, secret) {
   try {
     const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
-    
+
     if (!encodedHeader || !encodedPayload || !encodedSignature) {
       throw new Error('Invalid token format');
     }
 
     const data = `${encodedHeader}.${encodedPayload}`;
-    
+
     const key = await crypto.subtle.importKey(
       'raw',
       new TextEncoder().encode(secret),
@@ -435,7 +435,7 @@ async function verifyJWT(token, secret) {
     );
 
     const signature = Uint8Array.from(atob(encodedSignature), c => c.charCodeAt(0));
-    
+
     const isValid = await crypto.subtle.verify(
       'HMAC',
       key,
@@ -448,12 +448,12 @@ async function verifyJWT(token, secret) {
     }
 
     const payload = JSON.parse(atob(encodedPayload));
-    
+
     // 有効期限チェック
     if (payload.exp && payload.exp < Date.now() / 1000) {
       throw new Error('Token expired');
     }
-    
+
     return payload;
   } catch (error) {
     throw new Error(`Token verification failed: ${error.message}`);

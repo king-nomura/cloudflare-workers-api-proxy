@@ -1,5 +1,5 @@
 name = "api-proxy-worker"
-main = "src/index.js"
+main = "cf_workers_proxy.js"
 compatibility_date = "2024-01-01"
 
 # 環境変数（本番環境では wrangler secret put コマンドで設定）
